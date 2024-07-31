@@ -96,7 +96,6 @@ def main(opt):
     transceiver = Transceiver(num_layers, vocab_size, key_size, query_size,
                               value_size, num_hiddens, norm_shape, ffn_num_input,
                               ffn_num_hiddens, num_heads, dropout)
-
     mi_net = Mine()
     run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device)
 

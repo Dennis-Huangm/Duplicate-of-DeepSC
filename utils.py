@@ -111,7 +111,7 @@ def PowerNormalize(x):
     return x
 
 
-def check_snr(enc_output, voice):
-    Ps = (torch.linalg.norm(enc_output - enc_output.mean())) ** 2  # signal power
-    Pn = (torch.linalg.norm(enc_output - voice)) ** 2  # noise power
+def check_snr(signal, signal_noice):
+    Ps = (torch.linalg.norm(signal - signal.mean())) ** 2  # signal power
+    Pn = (torch.linalg.norm(signal - signal_noice)) ** 2  # noise power
     return 10 * torch.log10(Ps / Pn)

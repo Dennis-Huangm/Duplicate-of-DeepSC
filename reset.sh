@@ -2,7 +2,7 @@
 git fetch --all
 
 # 强制重置本地分支到远程分支
-git reset --hard origin/main
+git reset --hard origin/master
 
 # 清理未追踪文件
 git clean -fd

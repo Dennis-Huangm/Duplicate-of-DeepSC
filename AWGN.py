@@ -12,7 +12,9 @@ noise_variance = signal_power / torch.pow(torch.tensor(10),torch.tensor((SNR / 1
 noise = (torch.sqrt(noise_variance) / torch.std(noise)) * noise  ##此处是噪声的std**2
 signal_noise = noise + signal
 
+
 # signal_noise = signal + torch.normal(0, 0.1, size=signal.shape)
+
 
 # snr1 = 10 ** (SNR / 10.0)
 # xpower = torch.sum(signal ** 2) / signal.numel()

@@ -72,8 +72,8 @@ def parse_opt():
     parser.add_argument('--num_heads', type=int, default=8, help='multiple head of attention')
     parser.add_argument('--norm-shape', type=list, default=[128])
     parser.add_argument('--vocab', type=str, default='./content/vocab.json')
-    parser.add_argument('--save-csv', action='store_true', help='save the result as csv file')
-    parser.add_argument('--save-img', action='store_true', help='save the loss arc as img')
+    parser.add_argument('--save-csv', type=bool, default=False, help='save the result as csv file')
+    parser.add_argument('--save-img', type=bool, default=False, help='save the loss arc as img')
     return parser.parse_args()
 
 

@@ -11,8 +11,8 @@ import torch
 def train_p1(net, mi_model, X, valid_lens, opt, scaler):
     opt.zero_grad()
     with autocast():
-        enc_output = net.transmitter(X, valid_lens)
-        channel_output = PowerNormalize(net.channel.add_AWGN(enc_output, 12))
+        enc_output = PowerNormalize(net.transmitter(X, valid_lens))
+        channel_output = net.channel.add_AWGN(enc_output, 12)
         # print(check_snr(enc_output, net.channel.add_AWGN(enc_output, 12)))
         joint, marg = sample_batch(enc_output, channel_output)
         loss_mi = -mutual_information(joint, marg, mi_model)
@@ -52,20 +52,22 @@ def val_epoch(net, test_iter, device, loss, vocab):
             X, num_steps = src[:, 1:], src.shape[1] - 1
             dec_X = torch.unsqueeze(torch.tensor(
                 [vocab["token_to_idx"]['<START>']] * len(batch[1]), device=device), dim=1)
-            output, pred = [], []
+            output, preds = [], []
             with autocast():
-                enc_output = net.transmitter(X, valid_lens)
-                channel_enc = PowerNormalize(net.channel.add_AWGN(enc_output, 12))
+                enc_output = PowerNormalize(net.transmitter(X, valid_lens))
+                channel_enc = net.channel.add_AWGN(enc_output, 12)
                 channel_dec = net.receiver.channel_decoder(channel_enc)
                 dec_state = net.receiver.transformer_decoder.init_state(channel_dec, valid_lens)
                 for _ in range(num_steps):
                     Y, dec_state = net.receiver.transformer_decoder(dec_X, dec_state)
-                    dec_X = Y.argmax(dim=2)
-                    output.append(Y)
-                    pred.append(dec_X.type(torch.int32))
+                    prob = Y[:, -1:, :]
+                    pred = prob.argmax(dim=2)
+                    dec_X = torch.cat([dec_X, pred], dim=1)
+                    output.append(prob)
+                    preds.append(pred.type(torch.int32))
 
             output = torch.cat(output, dim=1)
-            pred = torch.cat(pred, dim=1)
+            pred = torch.cat(preds, dim=1)
             loss_CE = loss(output, X, valid_lens).mean()
             metric.add(1, loss_CE)
     return metric[1] / metric[0]

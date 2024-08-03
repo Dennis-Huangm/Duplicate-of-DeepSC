@@ -97,10 +97,11 @@ def main(opt):
 
     transceiver = Transceiver(num_layers, vocab_size, key_size, query_size,
                               value_size, num_hiddens, norm_shape, ffn_num_input,
-                              ffn_num_hiddens, num_heads, dropout)
+                              ffn_num_hiddens, num_heads, dropout).to(opt.device)
     transceiver.load_state_dict(torch.load('model.pt'))
     loss = MaskedSoftmaxCELoss()
-    val_epoch(transceiver, test_loader, opt.device, loss, vocab)
+    l=val_epoch(transceiver, test_loader, opt.device, loss, vocab)
+    print(l)
 
 
 if __name__ == '__main__':

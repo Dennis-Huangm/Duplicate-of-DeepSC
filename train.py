@@ -49,7 +49,6 @@ def val_epoch(net, test_iter, device, loss, vocab):
     with torch.no_grad():
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
-            print(src)
             X, num_steps = src[:, 1:], src.shape[1] - 1
             dec_X = torch.unsqueeze(torch.tensor(
                 [vocab["token_to_idx"]['<START>']] * len(batch[1]), device=device), dim=1)
@@ -66,8 +65,6 @@ def val_epoch(net, test_iter, device, loss, vocab):
                     pred.append(dec_X.type(torch.int32))
 
             output = torch.cat(output, dim=1)
-            print(output.shape)
-            print(output)
             pred = torch.cat(pred, dim=1)
             loss_CE = loss(output, X, valid_lens).mean()
             metric.add(1, loss_CE)

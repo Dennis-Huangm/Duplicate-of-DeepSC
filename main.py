@@ -45,7 +45,6 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
             channel_output, enc_output = train_p1(net, mi_model, X, valid_lens, opt_mi, scaler1)
             loss, mi_info = train_p2(net, channel_output, enc_output, X, mi_model, dec_input,
                                      valid_lens, opt_global, CE_loss, scaler2)
-            break
             with torch.no_grad():
                 metric.add(1, mi_info, loss)
             pbar.set_description(
@@ -56,6 +55,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
         writer.add_scalar('mutual_info', metric[1] / metric[0], epoch + 1)
         metric.reset()
+    torch.save(net.state_dict(), 'model.pt')
 
 
 def parse_opt():

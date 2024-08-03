@@ -15,7 +15,7 @@ import sys
 import argparse
 
 
-def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
+def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
     def xavier_init_weights(m):
         if type(m) == nn.Linear:
             nn.init.xavier_uniform_(m.weight)
@@ -23,8 +23,11 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
                 nn.init.constant_(m.bias, 0)
 
     scaler1, scaler2 = GradScaler(), GradScaler()
-    writer = SummaryWriter('./logs')
+    writer = SummaryWriter()
+    save_dir = writer.log_dir
+    weights_dir = save_dir + "/weights"
     metric = Accumulator(3)  # 统计损失训练总和
+
     net.apply(xavier_init_weights)
     net.to(device)
     mi_model.to(device)
@@ -41,12 +44,12 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
             X, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
             channel_output, enc_output = train_p1(net, mi_model, X, valid_lens, opt_mi, scaler1)
             loss, mi_info = train_p2(net, channel_output, enc_output, X, mi_model, dec_input,
-                                           valid_lens, opt_global, CE_loss, scaler2)
+                                     valid_lens, opt_global, CE_loss, scaler2)
             with torch.no_grad():
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch(net, test_iter, device, mi_model, CE_loss)
+        val_loss = val_epoch(net, test_iter, device, mi_model, CE_loss, vocab)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
@@ -97,7 +100,7 @@ def main(opt):
                               ffn_num_hiddens, num_heads, dropout)
     mi_net = Mine()
 
-    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device)
+    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device, vocab)
 
 
 if __name__ == '__main__':

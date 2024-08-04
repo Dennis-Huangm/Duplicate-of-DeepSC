@@ -11,7 +11,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 class EurDataset(Dataset):
     def __init__(self, split='train'):
         with open('./content/{}_data.pkl'.format(split), 'rb') as f:
-            self.data = pickle.load(f)
+            self.data = pickle.load(f)[:100]
 
     def __getitem__(self, index):
         return self.data[index]

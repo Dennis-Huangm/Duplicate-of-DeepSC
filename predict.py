@@ -1,17 +1,11 @@
 # Denis
 # coding:UTF-8
-from mutual_info import *
 from utils import *
 from datasets import EurDataset, collate_data
 import json
 from models import Transceiver
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import nn
-from train import train_p1, train_p2, val_epoch
-from torch.cuda.amp import GradScaler
-from tqdm import tqdm
-import sys
+from train import val_epoch
 import argparse
 import torch
 

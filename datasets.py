@@ -11,7 +11,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 class EurDataset(Dataset):
     def __init__(self, split='train'):
         with open('./content/{}_data.pkl'.format(split), 'rb') as f:
-            self.data = pickle.load(f)[:100]
+            self.data = pickle.load(f)
 
     def __getitem__(self, index):
         return self.data[index]
@@ -28,8 +28,8 @@ def collate_data(batch):
     valid_lens = torch.zeros(len(batch))
 
     for i, sent in enumerate(sort_by_len):
-        length = valid_lens[i] = len(sent) - 1
-        sents[i, :length + 1] = sent  # padding the questions
+        length = valid_lens[i] = len(sent)
+        sents[i, :length] = sent  # padding the questions
 
     return torch.from_numpy(sents), valid_lens
 

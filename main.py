@@ -24,8 +24,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
 
     scaler1, scaler2 = GradScaler(), GradScaler()
     writer = SummaryWriter()
-    save_dir = writer.log_dir
-    weights_dir = save_dir + "/weights"
+    weights_dir = writer.log_dir + "/weights"
     metric = Accumulator(3)  # 统计损失训练总和
 
     net.apply(xavier_init_weights)
@@ -41,9 +40,9 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
         pbar = tqdm(train_iter, ascii=True, unit="batch", file=sys.stdout)
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
-            X, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
-            channel_output, enc_output = train_p1(net, mi_model, X, valid_lens, opt_mi, scaler1)
-            loss, mi_info = train_p2(net, channel_output, enc_output, X, mi_model, dec_input,
+            target, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
+            channel_output, enc_output = train_p1(net, mi_model, src, valid_lens, opt_mi, scaler1)
+            loss, mi_info = train_p2(net, channel_output, enc_output, target, mi_model, dec_input,
                                      valid_lens, opt_global, CE_loss, scaler2)
             with torch.no_grad():
                 metric.add(1, mi_info, loss)
@@ -55,7 +54,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
         writer.add_scalar('mutual_info', metric[1] / metric[0], epoch + 1)
         metric.reset()
-    torch.save(net.state_dict(), 'model.pt')
+    torch.save(net.state_dict(), weights_dir + 'model.pt')
 
 
 def parse_opt():
@@ -81,7 +80,6 @@ def parse_opt():
 
 
 def main(opt):
-    opt = parse_opt()
     vocab, ffn_num_input, ffn_num_hiddens, key_size, query_size, value_size, num_layers, dropout, lr, num_heads, \
     norm_shape, save_csv, save_img, num_hiddens = opt.vocab, opt.ffn_num_input, opt.ffn_num_hiddens, opt.key_size, \
                                                   opt.query_size, opt.value_size, opt.num_layers, opt.dropout, \
@@ -105,5 +103,5 @@ def main(opt):
 
 
 if __name__ == '__main__':
-    opt = parse_opt()
-    main(opt)
+    args = parse_opt()
+    main(args)

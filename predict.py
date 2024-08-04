@@ -5,7 +5,7 @@ from datasets import EurDataset, collate_data
 import json
 from models import Transceiver
 from torch.utils.data import DataLoader
-from train import val_epoch
+from train import val_epoch, val_epoch1
 import argparse
 import torch
 
@@ -50,7 +50,8 @@ def main(opt):
                               ffn_num_hiddens, num_heads, dropout).to(opt.device)
     transceiver.load_state_dict(torch.load('model.pt'))
     loss = MaskedSoftmaxCELoss()
-    l=val_epoch(transceiver, test_loader, opt.device, loss, vocab)
+
+    l = val_epoch1(transceiver, test_loader, opt.device, loss)
     print(l)
 
 

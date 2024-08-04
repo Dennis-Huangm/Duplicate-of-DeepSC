@@ -74,8 +74,8 @@ class Transceiver(nn.Module):
                                  ffn_num_hiddens, num_heads, dropout, num_units2, num_units1)
         self.channel = Channels()
 
-    # def forward(self, enc_input, dec_input, valid_lens):
-    #     enc_output = self.transmitter(enc_input, valid_lens)
-    #     channel_output = PowerNormalize(self.channel.add_AWGN(enc_output, 12))
-    #     pred, _ = self.receiver(dec_input, channel_output, valid_lens)
-    #     return pred, channel_output, enc_output
+    def forward(self, enc_input, dec_input, valid_lens):
+        enc_output = self.transmitter(enc_input, valid_lens)
+        channel_output = PowerNormalize(self.channel.add_AWGN(enc_output, 12))
+        pred, _ = self.receiver(dec_input, channel_output, valid_lens)
+        return pred, channel_output, enc_output

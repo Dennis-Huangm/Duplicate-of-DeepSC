@@ -67,3 +67,17 @@ def val_epoch(net, test_iter, device, loss, vocab):
             loss_CE = loss(output, target, valid_lens).mean()
             metric.add(1, loss_CE)
     return metric[1] / metric[0]
+
+
+def val_epoch1(net, test_iter, device, loss):
+    metric = Accumulator(2)  # 统计损失训练总和
+    pbar = tqdm(test_iter, desc='Testing', ascii=True, unit="batch", file=sys.stdout)
+    with torch.no_grad():
+        for batch in pbar:
+            src, valid_lens = [x.to(device) for x in batch]
+            X, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
+            with autocast(enabled=False):
+                pred, channel_output, enc_output = net(X, dec_input, valid_lens)
+                l = loss(pred, X, valid_lens).mean()
+            metric.add(1, l)
+    return metric[1] / metric[0]

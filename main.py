@@ -8,7 +8,7 @@ from models import Transceiver
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch import nn
-from train import train_p1, train_p2, val_epoch
+from train import train_p1, train_p2, val_epoch, val_epoch1
 from torch.cuda.amp import GradScaler
 from tqdm import tqdm
 import sys
@@ -48,7 +48,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch(net, test_iter, device, CE_loss, vocab)
+        val_loss = val_epoch1(net, test_iter, device, CE_loss)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
@@ -59,7 +59,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=100, help='the epochs of training')
+    parser.add_argument('--epochs', type=int, default=30, help='the epochs of training')
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
     parser.add_argument('--device', default='cuda:0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--ffn-num-input', type=int, default=128, help='ffn\'s input dim')

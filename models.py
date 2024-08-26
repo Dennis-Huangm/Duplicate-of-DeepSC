@@ -7,9 +7,9 @@ class ChannelEncoder(nn.Module):
     def __init__(self, num_hiddens, num_units1, num_units2, **kwargs):
         super(ChannelEncoder, self).__init__(**kwargs)
         self.dense1 = nn.Linear(num_hiddens, num_units1)
-        self.relu1 = nn.LeakyReLU()
+        self.relu1 = nn.ReLU()
         self.dense2 = nn.Linear(num_units1, num_units2)
-        self.relu2 = nn.LeakyReLU()
+        self.relu2 = nn.ReLU()
 
     def forward(self, channel_input):
         channel_output = self.relu1(self.dense1(channel_input))
@@ -35,9 +35,9 @@ class ChannelDecoder(nn.Module):
     def __init__(self, channel_features, num_units, num_hiddens, **kwargs):
         super(ChannelDecoder, self).__init__(**kwargs)
         self.dense1 = nn.Linear(channel_features, num_units)
-        self.relu1 = nn.LeakyReLU()
+        self.relu1 = nn.ReLU()
         self.dense2 = nn.Linear(num_units, num_hiddens)
-        self.relu2 = nn.LeakyReLU()
+        self.relu2 = nn.ReLU()
 
     def forward(self, enc_outputs):
         channel_output = self.relu1(self.dense1(enc_outputs))

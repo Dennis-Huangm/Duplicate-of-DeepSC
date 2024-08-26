@@ -11,7 +11,6 @@ from torch import nn
 from train import train_p1, train_p2, val_epoch, val_epoch1
 from torch.cuda.amp import GradScaler
 from tqdm import tqdm
-import sys
 import argparse
 
 
@@ -24,20 +23,19 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
 
     scaler1, scaler2 = GradScaler(), GradScaler()
     writer = SummaryWriter()
-    weights_dir = writer.log_dir + "/weights"
     metric = Accumulator(3)  # 统计损失训练总和
+    opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
+    opt_mi = torch.optim.Adam(mi_model.parameters(), lr)
+    CE_loss = MaskedSoftmaxCELoss()
 
     net.apply(xavier_init_weights)
     net.to(device)
     mi_model.to(device)
-    net.train()
-    mi_model.train()
 
-    opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
-    opt_mi = torch.optim.Adam(mi_model.parameters(), lr)
-    CE_loss = MaskedSoftmaxCELoss()
     for epoch in range(num_epochs):
-        pbar = tqdm(train_iter, ascii=True, unit="batch", file=sys.stdout)
+        net.train()
+        mi_model.train()
+        pbar = tqdm(train_iter, ascii=True, unit="batch")
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
             target, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
@@ -48,27 +46,27 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch1(net, test_iter, device, CE_loss)
+        val_loss = val_epoch(net, train_iter, device, CE_loss, vocab, 12)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
         writer.add_scalar('mutual_info', metric[1] / metric[0], epoch + 1)
         metric.reset()
-    torch.save(net.state_dict(), weights_dir + 'model.pt')
+    torch.save(net.state_dict(), writer.log_dir + '/model.pt')
 
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=30, help='the epochs of training')
+    parser.add_argument('--epochs', type=int, default=100, help='the epochs of training')
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
     parser.add_argument('--device', default='cuda:0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--ffn-num-input', type=int, default=128, help='ffn\'s input dim')
-    parser.add_argument('--ffn-num-hiddens', type=int, default=256, help='the hidden size of transformers\'s ffn')
+    parser.add_argument('--ffn-num-hiddens', type=int, default=512, help='the hidden size of transformers\'s ffn')
     parser.add_argument('--num-hiddens', type=int, default=128, help='the dimension of channel encoding')
     parser.add_argument('--key-size', type=int, default=128, help='the dimension of key')
     parser.add_argument('--query-size', type=int, default=128, help='the dimension of query')
     parser.add_argument('--value-size', type=int, default=128, help='the dimension of value')
-    parser.add_argument('--num-layers', type=int, default=3, help='the layers of encoder and decoder')
+    parser.add_argument('--num-layers', type=int, default=4, help='the layers of encoder and decoder')
     parser.add_argument('--dropout', type=int, default=0.1)
     parser.add_argument('--lr', type=int, default=1e-3, help='learning rate')
     parser.add_argument('--num_heads', type=int, default=8, help='multiple head of attention')

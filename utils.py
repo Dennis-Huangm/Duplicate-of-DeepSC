@@ -3,6 +3,7 @@
 import torch
 from torch import nn
 from torch.nn import functional
+import numpy as np
 
 
 def sequence_mask(X, valid_len, value=0.0):
@@ -115,3 +116,9 @@ def check_snr(signal, signal_noice):
     Ps = (torch.linalg.norm(signal - signal.mean())) ** 2  # signal power
     Pn = (torch.linalg.norm(signal - signal_noice)) ** 2  # noise power
     return 10 * torch.log10(Ps / Pn)
+
+def SNR_to_noise(snr):
+    snr = 10 ** (snr / 10)
+    noise_std = 1 / np.sqrt(2 * snr)
+
+    return noise_std

@@ -40,3 +40,4 @@ if __name__ == '__main__':
     test_datasets = EurDataset(split='test')
     train_loader = DataLoader(train_datasets, shuffle=True, batch_size=batch_size, collate_fn=collate_data)
     test_loader = DataLoader(test_datasets, shuffle=True, batch_size=batch_size, collate_fn=collate_data)
+    print(len(train_datasets))

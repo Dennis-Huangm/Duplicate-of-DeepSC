@@ -77,7 +77,7 @@ class PositionWiseFFN(nn.Module):
     def __init__(self, ffn_num_input, ffn_num_hiddens, ffn_num_outputs, **kwargs):
         super(PositionWiseFFN, self).__init__(**kwargs)
         self.dense1 = nn.Linear(ffn_num_input, ffn_num_hiddens)
-        self.relu = nn.LeakyReLU()
+        self.relu = nn.ReLU()
         self.dense2 = nn.Linear(ffn_num_hiddens, ffn_num_outputs)
 
     def forward(self, X):
@@ -157,11 +157,11 @@ class DecoderBlock(nn.Module):
 
     def forward(self, X, state):
         enc_outputs, enc_valid_lens = state[0], state[1]
-        if state[2][self.i] is None:
-            key_values = X
-        else:
-            key_values = torch.cat((state[2][self.i], X), dim=1)
-        state[2][self.i] = key_values
+        # if state[2][self.i] is None:
+        #     key_values = X
+        # else:
+        #     key_values = torch.cat((state[2][self.i], X), dim=1)
+        # state[2][self.i] = key_values
         if self.training:
             batch_size, num_steps, _ = X.shape
             dec_valid_lens = torch.arange(
@@ -169,7 +169,7 @@ class DecoderBlock(nn.Module):
         else:
             dec_valid_lens = None
         # 自注意力
-        X2 = self.attention1(X, key_values, key_values, dec_valid_lens)
+        X2 = self.attention1(X, X, X, dec_valid_lens)
         Y = self.addnorm1(X, X2)
         Y2 = self.attention2(Y, enc_outputs, enc_outputs, enc_valid_lens)  # 遮蔽padding
         Z = self.addnorm2(Y, Y2)

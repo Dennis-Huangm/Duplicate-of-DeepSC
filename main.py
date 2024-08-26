@@ -46,7 +46,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch1(net, train_iter, device, CE_loss)
+        val_loss = val_epoch1(net, test_iter, device, CE_loss)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)

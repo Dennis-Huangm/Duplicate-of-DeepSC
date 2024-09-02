@@ -1,5 +1,2 @@
-# ESCN
-ESCN(Ensemble Semantic Communication Network)，在之前复现的论文中引入了集成学习，
-对Transfomer的解码器或输出进行集成， 以得到更好的结果。  
-
-将尝试采取不同的集成技术。持续更新中……
+# Duplicate-of-DeepSC
+对语义通信领域论文《Deep_Learning_Enabled_Semantic_Communication_Systems》的复现 后续添加argparse，尝试在linux环境下测试AMP半精度训练

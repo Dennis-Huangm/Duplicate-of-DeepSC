@@ -32,7 +32,7 @@ def parse_opt():
     return parser.parse_args()
 
 
-def main(opt):
+def predict(opt):
     vocab, ffn_num_input, ffn_num_hiddens, key_size, query_size, value_size, num_layers, dropout, lr, num_heads, \
     norm_shape, save_csv, save_img, num_hiddens = opt.vocab, opt.ffn_num_input, opt.ffn_num_hiddens, opt.key_size, \
                                                   opt.query_size, opt.value_size, opt.num_layers, opt.dropout, \
@@ -57,4 +57,4 @@ def main(opt):
 
 if __name__ == '__main__':
     args = parse_opt()
-    main(args)
+    predict(args)

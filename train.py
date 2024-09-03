@@ -21,6 +21,8 @@ def train_p1(net, mi_model, X, valid_lens, opt, scaler):
     # torch.nn.utils.clip_grad_norm_(mi_model.parameters(), 1)
     scaler.step(opt)
     scaler.update()
+    # loss_mi.backward(retain_graph=True)
+    # opt.step()
     return channel_output, enc_output
 
 
@@ -38,6 +40,8 @@ def train_p2(net, channel_output, enc_output, X, mi_model, dec_input, valid_lens
     # torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
     scaler.step(opt)
     scaler.update()
+    # l.backward()
+    # opt.step()
     return l.item(), mi_info.item()
 
 
@@ -51,7 +55,7 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
             src, valid_lens = [x.to(device) for x in batch]
             target, num_steps = src[:, 1:], src.shape[1] - 1
             noise_std = SNR_to_noise(snr)
-            # print(target[:10, :])
+            print('label' + str(target[:10, :]))
             dec_X = torch.unsqueeze(torch.tensor(
                 [vocab["token_to_idx"]['<START>']] * len(batch[1]), dtype=src.dtype, device=device), dim=1)
             output = []
@@ -68,7 +72,7 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
                     output.append(prob)
 
             output = torch.cat(output, dim=1)
-            # print('test预测结果' + str(dec_X[:10, 1:]))
+            print('test预测结果' + str(dec_X[:10, 1:]))
             loss_CE = loss(output, target, valid_lens).mean()
             metric.add(1, loss_CE)
     return metric[1] / metric[0]

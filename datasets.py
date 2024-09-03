@@ -35,9 +35,14 @@ def collate_data(batch):
 
 
 if __name__ == '__main__':
-    batch_size = 128
+    batch_num = 1
     train_datasets = EurDataset()
     test_datasets = EurDataset(split='test')
-    train_loader = DataLoader(train_datasets, shuffle=True, batch_size=batch_size, collate_fn=collate_data)
-    test_loader = DataLoader(test_datasets, shuffle=True, batch_size=batch_size, collate_fn=collate_data)
+    train_loader = DataLoader(train_datasets, shuffle=True, batch_size=batch_num, collate_fn=collate_data)
+    test_loader = DataLoader(test_datasets, shuffle=True, batch_size=batch_num, collate_fn=collate_data)
     print(len(train_datasets))
+    for u,v in train_loader:
+        print(u.shape)
+        print(u)
+        print(v)
+        break

@@ -14,7 +14,7 @@ from tqdm import tqdm
 import argparse
 
 
-def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
+def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
     def xavier_init_weights(m):
         if type(m) == nn.Linear:
             nn.init.xavier_uniform_(m.weight)
@@ -25,6 +25,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
     writer = SummaryWriter()
     metric = Accumulator(3)  # 统计损失训练总和
     opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
+    # opt_global = torch.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-8, weight_decay=5e-4)
     opt_mi = torch.optim.Adam(mi_model.parameters(), lr)
     CE_loss = MaskedSoftmaxCELoss()
 
@@ -57,7 +58,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=100, help='the epochs of training')
+    parser.add_argument('--epochs', type=int, default=80, help='the epochs of training')
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
     parser.add_argument('--device', default='cuda:0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--ffn-num-input', type=int, default=128, help='ffn\'s input dim')
@@ -97,7 +98,7 @@ def main(opt):
                               ffn_num_hiddens, num_heads, dropout)
     mi_net = Mine()
 
-    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device, vocab)
+    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device)
 
 
 if __name__ == '__main__':

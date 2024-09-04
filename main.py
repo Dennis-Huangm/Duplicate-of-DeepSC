@@ -14,7 +14,7 @@ from tqdm import tqdm
 import argparse
 
 
-def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
+def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
     def xavier_init_weights(m):
         if type(m) == nn.Linear:
             nn.init.xavier_uniform_(m.weight)
@@ -47,7 +47,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch1(net, test_iter, device, CE_loss)
+        val_loss = val_epoch(net, test_iter, device, CE_loss, vocab, 12)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)
@@ -62,12 +62,12 @@ def parse_opt():
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
     parser.add_argument('--device', default='cuda:0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--ffn-num-input', type=int, default=128, help='ffn\'s input dim')
-    parser.add_argument('--ffn-num-hiddens', type=int, default=256, help='the hidden size of transformers\'s ffn')
+    parser.add_argument('--ffn-num-hiddens', type=int, default=512, help='the hidden size of transformers\'s ffn')
     parser.add_argument('--num-hiddens', type=int, default=128, help='the dimension of channel encoding')
     parser.add_argument('--key-size', type=int, default=128, help='the dimension of key')
     parser.add_argument('--query-size', type=int, default=128, help='the dimension of query')
     parser.add_argument('--value-size', type=int, default=128, help='the dimension of value')
-    parser.add_argument('--num-layers', type=int, default=3, help='the layers of encoder and decoder')
+    parser.add_argument('--num-layers', type=int, default=4, help='the layers of encoder and decoder')
     parser.add_argument('--dropout', type=int, default=0.1)
     parser.add_argument('--lr', type=int, default=1e-3, help='learning rate')
     parser.add_argument('--num_heads', type=int, default=8, help='multiple head of attention')
@@ -98,7 +98,7 @@ def main(opt):
                               ffn_num_hiddens, num_heads, dropout)
     mi_net = Mine()
 
-    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device)
+    run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device, vocab)
 
 
 if __name__ == '__main__':

@@ -24,8 +24,8 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device):
     scaler1, scaler2 = GradScaler(), GradScaler()
     writer = SummaryWriter()
     metric = Accumulator(3)  # 统计损失训练总和
-    opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
-    # opt_global = torch.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-8, weight_decay=5e-4)
+    # opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
+    opt_global = torch.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-8, weight_decay=5e-4)
     opt_mi = torch.optim.Adam(mi_model.parameters(), lr)
     CE_loss = MaskedSoftmaxCELoss()
 

@@ -17,12 +17,12 @@ def train_p1(net, mi_model, X, valid_lens, opt, scaler):
         joint, marg = sample_batch(enc_output, channel_output)
         loss_mi = -mutual_information(joint, marg, mi_model)
 
-    scaler.scale(loss_mi).backward(retain_graph=True)
+    # scaler.scale(loss_mi).backward(retain_graph=True)
     # torch.nn.utils.clip_grad_norm_(mi_model.parameters(), 1)
-    scaler.step(opt)
-    scaler.update()
-    # loss_mi.backward(retain_graph=True)
-    # opt.step()
+    # scaler.step(opt)
+    # scaler.update()
+    loss_mi.backward(retain_graph=True)
+    opt.step()
     return channel_output, enc_output
 
 
@@ -36,12 +36,12 @@ def train_p2(net, channel_output, enc_output, X, mi_model, dec_input, valid_lens
 
     # print(X)
     # print('train预测结果' + str(pred.argmax(dim=2)))
-    scaler.scale(l).backward()
+    # scaler.scale(l).backward()
     # torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
-    scaler.step(opt)
-    scaler.update()
-    # l.backward()
-    # opt.step()
+    # scaler.step(opt)
+    # scaler.update()
+    l.backward()
+    opt.step()
     return l.item(), mi_info.item()
 
 

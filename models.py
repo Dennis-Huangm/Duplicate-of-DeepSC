@@ -76,6 +76,6 @@ class Transceiver(nn.Module):
 
     def forward(self, enc_input, dec_input, valid_lens):
         enc_output = self.transmitter(enc_input, valid_lens)
-        channel_output = PowerNormalize(self.channel.add_AWGN(enc_output, 12))
+        channel_output = PowerNormalize(self.channel.AWGN(enc_output, 0.1))
         pred, _ = self.receiver(dec_input, channel_output, valid_lens)
         return pred, channel_output, enc_output

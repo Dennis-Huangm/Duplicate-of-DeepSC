@@ -157,9 +157,17 @@ class DecoderBlock(nn.Module):
 
     def forward(self, X, state):
         enc_outputs, enc_valid_lens = state[0], state[1]
-        batch_size, num_steps, _ = X.shape
-        dec_valid_lens = torch.arange(
-            1, num_steps + 1, device=X.device).repeat(batch_size, 1)
+        if state[2][self.i] is None:
+            key_values = X
+        else:
+            key_values = torch.cat((state[2][self.i], X), dim=1)
+        state[2][self.i] = key_values
+        if self.training:
+            batch_size, num_steps, _ = X.shape
+            dec_valid_lens = torch.arange(
+                1, num_steps + 1, device=X.device).repeat(batch_size, 1)
+        else:
+            dec_valid_lens = None
 
         # 自注意力
         X2 = self.attention1(X, X, X, dec_valid_lens)

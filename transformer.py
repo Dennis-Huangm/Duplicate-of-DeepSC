@@ -168,7 +168,6 @@ class DecoderBlock(nn.Module):
                 1, num_steps + 1, device=X.device).repeat(batch_size, 1)
         else:
             dec_valid_lens = None
-
         # 自注意力
         X2 = self.attention1(X, X, X, dec_valid_lens)
         Y = self.addnorm1(X, X2)

@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch import nn
 from train import train_p1, train_p2, val_epoch, val_epoch1
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from tqdm import tqdm
 import argparse
 
@@ -21,7 +21,7 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    scaler1, scaler2 = GradScaler(), GradScaler()
+    scaler1, scaler2 = GradScaler('cuda'), GradScaler('cuda')
     writer = SummaryWriter()
     metric = Accumulator(3)  # 统计损失训练总和
     opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)

@@ -55,7 +55,6 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
             src, valid_lens = [x.to(device) for x in batch]
             target, num_steps = src[:, 1:], src.shape[1] - 1
             noise_std = SNR_to_noise(snr)
-            print('label' + str(target[:10, :]))
             dec_X = torch.unsqueeze(torch.tensor(
                 [vocab["token_to_idx"]['<START>']] * len(batch[1]), dtype=src.dtype, device=device), dim=1)
             output = []
@@ -73,9 +72,10 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
 
             output = torch.cat(output, dim=1)
             pred = torch.cat(pred, dim=1)
-            print('test预测结果' + str(pred[:10, 1:]))
             loss_CE = loss(output, target, valid_lens).mean()
             metric.add(1, loss_CE)
+        print('label：' + str(target[:10, :]))
+        print('test预测结果：' + str(pred[:10, 1:]))
     return metric[1] / metric[0]
 
 

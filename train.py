@@ -4,31 +4,32 @@ from mutual_info import *
 from utils import *
 from tqdm import tqdm
 import sys
-from torch.amp import autocast
+from torch.cuda.amp import autocast
 import torch
 
 
 def train_p1(net, mi_model, X, valid_lens, opt, scaler):
     opt.zero_grad()
-    with autocast('cuda'):
+    with autocast():
         enc_output = PowerNormalize(net.transmitter(X, valid_lens))
         channel_output = net.channel.AWGN(enc_output, 0.1)
         # print(check_snr(enc_output, channel_output))
         joint, marg = sample_batch(enc_output, channel_output)
-        loss_mi = -mutual_information(joint, marg, mi_model)
+        loss_mi = -mutual_information(joint.detach(), marg.detach(), mi_model)
 
-    scaler.scale(loss_mi).backward(retain_graph=True)
+    scaler.scale(loss_mi).backward()
     # torch.nn.utils.clip_grad_norm_(mi_model.parameters(), 1)
     scaler.step(opt)
     scaler.update()
-    # loss_mi.backward(retain_graph=True)
+    # loss_mi.backward()
     # opt.step()
     return channel_output, enc_output
 
 
-def train_p2(net, channel_output, enc_output, X, mi_model, dec_input, valid_lens, opt, loss, scaler):
+def train_p2(net, channel_output, enc_output, X, mi_model, dec_input, valid_lens, opt, scaler):
+    loss = MaskedSoftmaxCELoss()
     opt.zero_grad()
-    with autocast('cuda'):
+    with autocast():
         pred, _ = net.receiver(dec_input, channel_output, valid_lens)
         joint, marg = sample_batch(enc_output, channel_output)
         mi_info = mutual_information(joint, marg, mi_model)
@@ -45,7 +46,8 @@ def train_p2(net, channel_output, enc_output, X, mi_model, dec_input, valid_lens
     return l.item(), mi_info.item()
 
 
-def val_epoch(net, test_iter, device, loss, vocab, snr):
+def val_epoch(net, test_iter, device, vocab, snr):
+    loss = MaskedSoftmaxCELoss()
     net.eval()
     metric = Accumulator(2)  # 统计损失训练总和
     pbar = tqdm(test_iter, desc='Testing', ascii=True, unit="batch")
@@ -59,7 +61,7 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
                 [vocab["token_to_idx"]['<START>']] * len(batch[1]), dtype=src.dtype, device=device), dim=1)
             output = []
             pred = []
-            with autocast('cuda'):
+            with autocast():
                 enc_output = PowerNormalize(net.transmitter(src, valid_lens))
                 channel_enc = net.channel.AWGN(enc_output, noise_std)
                 channel_dec = net.receiver.channel_decoder(channel_enc)
@@ -79,7 +81,8 @@ def val_epoch(net, test_iter, device, loss, vocab, snr):
     return metric[1] / metric[0]
 
 
-def val_epoch1(net, test_iter, device, loss):
+def val_epoch1(net, test_iter, device):
+    loss = MaskedSoftmaxCELoss()
     metric = Accumulator(2)  # 统计损失训练总和
     pbar = tqdm(test_iter, desc='Testing', ascii=True, unit="batch", file=sys.stdout)
     with torch.no_grad():

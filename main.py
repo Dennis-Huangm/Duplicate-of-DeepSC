@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch import nn
 from train import train_p1, train_p2, val_epoch, val_epoch1
-from torch.amp import GradScaler
+from torch.cuda.amp import GradScaler
 from tqdm import tqdm
 import argparse
 
@@ -21,13 +21,12 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    scaler1, scaler2 = GradScaler('cuda'), GradScaler('cuda')
+    scaler1, scaler2 = GradScaler(), GradScaler()
     writer = SummaryWriter()
     metric = Accumulator(3)  # 统计损失训练总和
     opt_global = torch.optim.AdamW(net.parameters(), lr, eps=1e-7)
     # opt_global = torch.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-8, weight_decay=5e-4)
     opt_mi = torch.optim.Adam(mi_model.parameters(), lr)
-    CE_loss = MaskedSoftmaxCELoss()
 
     net.apply(xavier_init_weights)
     net.to(device)
@@ -42,12 +41,12 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
             target, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
             channel_output, enc_output = train_p1(net, mi_model, src, valid_lens, opt_mi, scaler1)
             loss, mi_info = train_p2(net, channel_output, enc_output, target, mi_model, dec_input,
-                                     valid_lens, opt_global, CE_loss, scaler2)
+                                     valid_lens, opt_global, scaler2)
             with torch.no_grad():
                 metric.add(1, mi_info, loss)
             pbar.set_description(
                 'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
-        val_loss = val_epoch(net, test_iter, device, CE_loss, vocab, 12)
+        val_loss = val_epoch(net, test_iter, device, vocab, 12)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
         writer.add_scalar('loss', metric[2] / metric[0], epoch + 1)

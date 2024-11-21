@@ -78,4 +78,4 @@ class Transceiver(nn.Module):
         enc_output = self.transmitter(enc_input, valid_lens)
         channel_output = PowerNormalize(self.channel.AWGN(enc_output, 0.1))
         pred, _ = self.receiver(dec_input, channel_output, valid_lens)
-        return pred, channel_output, enc_output
+        return pred

@@ -5,7 +5,6 @@ from utils import *
 from tqdm import tqdm
 import sys
 from torch.cuda.amp import autocast
-import torch
 
 
 def train_p1(net, mi_model, X, valid_lens, opt, scaler):

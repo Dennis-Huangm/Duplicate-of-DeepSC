@@ -7,7 +7,6 @@ import json
 from models import Transceiver
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torch import nn
 from train import train_p1, train_p2, val_epoch, val_epoch1
 from torch.cuda.amp import GradScaler
 from tqdm import tqdm

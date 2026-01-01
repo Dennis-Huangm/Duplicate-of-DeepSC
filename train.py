@@ -26,24 +26,35 @@ def train_p1(net, mi_model, X, valid_lens, opt, scaler):
 
 
 def train_p2(
-    net, channel_output, enc_output, X, mi_model, dec_input, valid_lens, opt, scaler
+    net, channel_output, enc_output, X, mi_model, dec_input, valid_lens, opt, scaler,
+    sampling_prob=0.0  # Scheduled Sampling: 使用模型预测的概率
 ):
     loss = MaskedSoftmaxCELoss()
     opt.zero_grad()
     with autocast():
-        pred, _ = net.receiver(dec_input, channel_output, valid_lens)
+        # Scheduled Sampling: 逐步从 Teacher Forcing 过渡到自回归解码
+        if sampling_prob > 0 and torch.rand(1).item() < sampling_prob:
+            # 使用自回归方式生成部分输入
+            channel_dec = net.receiver.channel_decoder(channel_output)
+            dec_state = net.receiver.transformer_decoder.init_state(channel_dec, valid_lens)
+            mixed_input = dec_input.clone()
+            for t in range(1, dec_input.size(1)):
+                Y, dec_state = net.receiver.transformer_decoder(mixed_input[:, :t], dec_state)
+                if torch.rand(1).item() < sampling_prob:
+                    mixed_input[:, t] = Y[:, -1, :].argmax(dim=-1)
+                # 重置 dec_state 以便下次使用完整序列
+                dec_state = net.receiver.transformer_decoder.init_state(channel_dec, valid_lens)
+            pred, _ = net.receiver(mixed_input, channel_output, valid_lens)
+        else:
+            pred, _ = net.receiver(dec_input, channel_output, valid_lens)
+        
         joint, marg = sample_batch(enc_output, channel_output)
         mi_info = mutual_information(joint, marg, mi_model)
         l = loss(pred, X, valid_lens).mean() - 0.0009 * mi_info
 
-    # print(X)
-    # print('train预测结果' + str(pred.argmax(dim=2)))
     scaler.scale(l).backward()
-    # torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
     scaler.step(opt)
     scaler.update()
-    # l.backward()
-    # opt.step()
     return l.item(), mi_info.item()
 
 
@@ -85,7 +96,7 @@ def val_epoch(net, test_iter, device, vocab, snr):
             loss_CE = loss(output, target, valid_lens).mean()
             metric.add(1, loss_CE)
         print("label：" + str(target[:10, :]))
-        print("test预测结果：" + str(pred[:10, 1:]))
+        print("test预测结果：" + str(pred[:10, :]))  # 修复：移除 [1:] 对齐 target
     return metric[1] / metric[0]
 
 

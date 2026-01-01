@@ -1,21 +1,23 @@
 # Denis
 # coding:UTF-8
-from mutual_info import *
-from utils import *
-from datasets import EurDataset, collate_data
+import argparse
 import json
-from models import Transceiver
+
+from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from train import train_p1, train_p2, val_epoch, val_epoch1
-from torch.cuda.amp import GradScaler
 from tqdm import tqdm
-import argparse
+
+from datasets import EurDataset, collate_data
+from models import Transceiver
+from mutual_info import *
+from train import train_p1, train_p2, val_epoch
+from utils import *
 
 
 def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
     def xavier_init_weights(m):
-        if type(m) == nn.Linear:
+        if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
@@ -34,17 +36,19 @@ def run(net, mi_model, train_iter, test_iter, lr, num_epochs, device, vocab):
     for epoch in range(num_epochs):
         net.train()
         mi_model.train()
+        # Scheduled Sampling: 从第10个epoch开始，线性增加采样概率到0.5
+        sampling_prob = min(0.5, max(0, (epoch - 10) / 40))
         pbar = tqdm(train_iter, ascii=True, unit="batch")
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
             target, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
             channel_output, enc_output = train_p1(net, mi_model, src, valid_lens, opt_mi, scaler1)
             loss, mi_info = train_p2(net, channel_output, enc_output, target, mi_model, dec_input,
-                                     valid_lens, opt_global, scaler2)
+                                    valid_lens, opt_global, scaler2, sampling_prob)
             with torch.no_grad():
                 metric.add(1, mi_info, loss)
             pbar.set_description(
-                'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f}'.format(epoch + 1, num_epochs, loss, mi_info))
+                'Training:epoch {0}/{1} loss:{2:.3f} mi_info:{3:.3f} sp:{4:.2f}'.format(epoch + 1, num_epochs, loss, mi_info, sampling_prob))
         val_loss = val_epoch(net, test_iter, device, vocab, 12)
         print("=============== Train_Loss:{0:.3f} mi_info:{1:.3f} Test_loss:{2:.3f} ===============\n".format(
             metric[2] / metric[0], metric[1] / metric[0], val_loss))
@@ -66,8 +70,8 @@ def parse_opt():
     parser.add_argument('--query-size', type=int, default=128, help='the dimension of query')
     parser.add_argument('--value-size', type=int, default=128, help='the dimension of value')
     parser.add_argument('--num-layers', type=int, default=3, help='the layers of encoder and decoder')
-    parser.add_argument('--dropout', type=int, default=0.1)
-    parser.add_argument('--lr', type=int, default=1e-3, help='learning rate')
+    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--num_heads', type=int, default=8, help='multiple head of attention')
     parser.add_argument('--norm-shape', type=list, default=[128])
     parser.add_argument('--vocab', type=str, default='./content/vocab.json')
@@ -79,9 +83,9 @@ def parse_opt():
 def main(opt):
     vocab, ffn_num_input, ffn_num_hiddens, key_size, query_size, value_size, num_layers, dropout, lr, num_heads, \
     norm_shape, save_csv, save_img, num_hiddens = opt.vocab, opt.ffn_num_input, opt.ffn_num_hiddens, opt.key_size, \
-                                                  opt.query_size, opt.value_size, opt.num_layers, opt.dropout, \
-                                                  opt.lr, opt.num_heads, opt.norm_shape, opt.save_csv, \
-                                                  opt.save_img, opt.num_hiddens
+                                                opt.query_size, opt.value_size, opt.num_layers, opt.dropout, \
+                                                opt.lr, opt.num_heads, opt.norm_shape, opt.save_csv, \
+                                                opt.save_img, opt.num_hiddens
 
     train_datasets = EurDataset()
     test_datasets = EurDataset(split='test')
@@ -92,8 +96,8 @@ def main(opt):
         vocab_size = len(vocab['token_to_idx'])
 
     transceiver = Transceiver(num_layers, vocab_size, key_size, query_size,
-                              value_size, num_hiddens, norm_shape, ffn_num_input,
-                              ffn_num_hiddens, num_heads, dropout)
+                            value_size, num_hiddens, norm_shape, ffn_num_input,
+                            ffn_num_hiddens, num_heads, dropout)
     mi_net = Mine()
 
     run(transceiver, mi_net, train_loader, test_loader, opt.lr, opt.epochs, opt.device, vocab)

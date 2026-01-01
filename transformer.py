@@ -1,6 +1,6 @@
 # Denis
 # coding:UTF-8
-from templates import *
+from base import *
 import math
 
 

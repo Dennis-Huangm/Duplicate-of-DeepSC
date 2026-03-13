@@ -1,18 +1,21 @@
 # Denis
 # coding:UTF-8
+from contextlib import nullcontext
+import sys
+
 from mutual_info import *
 from utils import *
 from tqdm import tqdm
-import sys
+import torch
 from torch.cuda.amp import autocast
 
 
 def train_p1(net, mi_model, X, valid_lens, opt, scaler):
     opt.zero_grad()
-    with autocast():
+    autocast_context = autocast() if X.device.type == 'cuda' else nullcontext()
+    with autocast_context:
         enc_output = PowerNormalize(net.transmitter(X, valid_lens))
         channel_output = net.channel.AWGN(enc_output, 0.1)
-        # print(check_snr(enc_output, channel_output))
         joint, marg = sample_batch(enc_output, channel_output)
         loss_mi = -mutual_information(joint.detach(), marg.detach(), mi_model)
 
@@ -30,8 +33,10 @@ def train_p2(
     sampling_prob=0.0  # Scheduled Sampling: 使用模型预测的概率
 ):
     loss = MaskedSoftmaxCELoss()
+    target_valid_lens = torch.clamp(valid_lens - 1, min=1)
     opt.zero_grad()
-    with autocast():
+    autocast_context = autocast() if channel_output.device.type == 'cuda' else nullcontext()
+    with autocast_context:
         # Scheduled Sampling: 逐步从 Teacher Forcing 过渡到自回归解码
         if sampling_prob > 0 and torch.rand(1).item() < sampling_prob:
             # 使用自回归方式生成部分输入
@@ -50,7 +55,7 @@ def train_p2(
         
         joint, marg = sample_batch(enc_output, channel_output)
         mi_info = mutual_information(joint, marg, mi_model)
-        l = loss(pred, X, valid_lens).mean() - 0.0009 * mi_info
+        l = loss(pred, X, target_valid_lens).mean() - 0.0009 * mi_info
 
     scaler.scale(l).backward()
     scaler.step(opt)
@@ -67,6 +72,7 @@ def val_epoch(net, test_iter, device, vocab, snr):
     with torch.no_grad():
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
+            target_valid_lens = torch.clamp(valid_lens - 1, min=1)
             target, num_steps = src[:, 1:], src.shape[1] - 1
             noise_std = SNR_to_noise(snr)
             dec_X = torch.unsqueeze(
@@ -93,7 +99,7 @@ def val_epoch(net, test_iter, device, vocab, snr):
 
             output = torch.cat(output, dim=1)
             pred = torch.cat(pred, dim=1)
-            loss_CE = loss(output, target, valid_lens).mean()
+            loss_CE = loss(output, target, target_valid_lens).mean()
             metric.add(1, loss_CE)
         print("label：" + str(target[:10, :]))
         print("test预测结果：" + str(pred[:10, :]))  # 修复：移除 [1:] 对齐 target
@@ -107,8 +113,9 @@ def val_epoch1(net, test_iter, device):
     with torch.no_grad():
         for batch in pbar:
             src, valid_lens = [x.to(device) for x in batch]
+            target_valid_lens = torch.clamp(valid_lens - 1, min=1)
             X, dec_input = src[:, 1:], src[:, :-1]  # 一个去除<bos>,一个去除<eos>
-            pred = net(X, dec_input, valid_lens)
-            l = loss(pred, X, valid_lens).mean()
+            pred = net(src, dec_input, valid_lens)
+            l = loss(pred, X, target_valid_lens).mean()
             metric.add(1, l)
     return metric[1] / metric[0]

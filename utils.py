@@ -1,9 +1,56 @@
 # Denis
 # coding:UTF-8
+from pathlib import Path
+
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional
-import numpy as np
+
+REPO_ROOT = Path(__file__).resolve().parent
+
+
+def resolve_repo_path(path):
+    path = Path(path).expanduser()
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    return path.resolve()
+
+
+def resolve_device(device):
+    if isinstance(device, torch.device):
+        return device
+    if device != 'cpu' and not torch.cuda.is_available():
+        print(f'CUDA requested ({device}) but unavailable; using cpu instead.')
+        return torch.device('cpu')
+    return torch.device(device)
+
+
+def validate_vocab(vocab):
+    token_to_idx = vocab.get('token_to_idx')
+    if not isinstance(token_to_idx, dict):
+        raise ValueError('vocab.json must contain a token_to_idx object.')
+    if '<START>' not in token_to_idx:
+        raise ValueError('vocab.json must define token_to_idx["<START>"]')
+    return token_to_idx
+
+
+def build_transceiver_config(opt, vocab_size):
+    return {
+        'num_layers': opt.num_layers,
+        'vocab_size': vocab_size,
+        'key_size': opt.key_size,
+        'query_size': opt.query_size,
+        'value_size': opt.value_size,
+        'num_hiddens': opt.num_hiddens,
+        'norm_shape': list(opt.norm_shape),
+        'ffn_num_input': opt.ffn_num_input,
+        'ffn_num_hiddens': opt.ffn_num_hiddens,
+        'num_heads': opt.num_heads,
+        'dropout': opt.dropout,
+        'num_units1': 256,
+        'num_units2': 16,
+    }
 
 
 def sequence_mask(X, valid_len, value=0.0):
@@ -18,29 +65,25 @@ def sequence_mask(X, valid_len, value=0.0):
 class MaskedSoftmaxCELoss(nn.CrossEntropyLoss):
     """带遮蔽的softmax交叉熵损失函数"""
 
-    def forward(self, pred, label, valid_len):  # 函数的重载
-        # valid_len的形状为：(batch_size,)
+    def forward(self, pred, label, valid_len):
         weights = torch.ones_like(label)
-        weights = sequence_mask(weights, valid_len)  # 设置掩码，由1和0组成
-        self.reduction = 'none'  # 不进行任何减少操作，返回与输入形状相同的张量
-        unweighted_loss = super().forward(pred.permute(0, 2, 1).float(), label)  # 将预测维度放在中间，在loss后消除vocab_size的维度
-        # 相当于是消除了(batch_size,num_classes)中的num_classes
-        weighted_loss = (unweighted_loss * weights).mean(1)  # 对一整个句子即一个batch的各个时间步的loss取平均，消除该维度
+        weights = sequence_mask(weights, valid_len)
+        self.reduction = 'none'
+        unweighted_loss = super().forward(pred.permute(0, 2, 1).float(), label)
+        weighted_loss = (unweighted_loss * weights).mean(1)
         return weighted_loss
 
 
 def masked_softmax(X, valid_lens):
-    # 输入X为(batch_size,num_query,num_kvpair(num_steps))
     """通过在最后一个轴上掩蔽元素来执行softmax操作"""
     if valid_lens is None:
         return functional.softmax(X, dim=-1)
     else:
         shape = X.shape
-        if valid_lens.dim() == 1:  # 等于1的情况一般是编码器encoder的遮蔽，用来屏蔽padding
+        if valid_lens.dim() == 1:
             valid_lens = torch.repeat_interleave(valid_lens, shape[1])
-            """将每个batch的有效长度复制num_query份，在自注意力中即为num_step个（为一列），之后在函数中经广播扩展每一行"""
         else:
-            valid_lens = valid_lens.reshape(-1)  # 等于2的时候一般是transformer的解码器decoder，用来屏蔽后面的信息
+            valid_lens = valid_lens.reshape(-1)
         X = sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-60000)
         return functional.softmax(X.reshape(shape), dim=-1)
 
@@ -70,24 +113,28 @@ def try_gpu(i=0):
 
 class Channels:
 
-    def AWGN(self, Tx_sig, n_var, device='cuda:0'):
-        Rx_sig = Tx_sig + torch.normal(0, n_var, size=Tx_sig.shape).to(device)  # 该方案SNR在30dB左右
+    def AWGN(self, Tx_sig, n_var, device=None):
+        noise_device = Tx_sig.device if device is None else torch.device(device)
+        noise = torch.randn_like(Tx_sig, device=noise_device) * n_var
+        Rx_sig = Tx_sig + noise
         return Rx_sig
 
-    # 定义加性高斯白噪声函数
-    def add_awgn(self, y, snr, device='cuda:0'):  # 该方案SNR可指定
+    def add_awgn(self, y, snr, device=None):
+        noise_device = y.device if device is None else torch.device(device)
         snr1 = 10 ** (snr / 10.0)
         xpower = torch.sum(y ** 2) / y.numel()
         npower = xpower / snr1
-        y_noise = torch.randn(size=y.shape).to(device) * torch.sqrt(npower) + y
+        y_noise = torch.randn_like(y, device=noise_device) * torch.sqrt(npower) + y
         return y_noise
 
-    def add_AWGN(self, signal, snr, device='cuda:0'):
-        noise = torch.randn(size=signal.shape).to(device)  # 产生N(0,1)噪声数据
-        noise = noise - torch.mean(noise)  # 均值为0
-        signal_power = torch.linalg.norm(signal - signal.mean()) ** 2 / signal.numel()  # 此处是信号的std**2
-        noise_variance = signal_power / torch.pow(torch.tensor(10), torch.tensor((snr / 10)))  # 此处是噪声的std**2
-        noise = (torch.sqrt(noise_variance) / torch.std(noise)) * noise  ##此处是噪声的std**2
+    def add_AWGN(self, signal, snr, device=None):
+        noise_device = signal.device if device is None else torch.device(device)
+        noise = torch.randn_like(signal, device=noise_device)
+        noise = noise - torch.mean(noise)
+        signal_power = torch.linalg.norm(signal - signal.mean()) ** 2 / signal.numel()
+        snr_ratio = torch.tensor(10.0, device=signal.device) ** (snr / 10)
+        noise_variance = signal_power / snr_ratio
+        noise = (torch.sqrt(noise_variance) / torch.std(noise)) * noise
         signal_noise = noise + signal
         return signal_noise
 
@@ -113,9 +160,10 @@ def PowerNormalize(x):
 
 
 def check_snr(signal, signal_noice):
-    Ps = (torch.linalg.norm(signal - signal.mean())) ** 2  # signal power
-    Pn = (torch.linalg.norm(signal - signal_noice)) ** 2  # noise power
+    Ps = (torch.linalg.norm(signal - signal.mean())) ** 2
+    Pn = (torch.linalg.norm(signal - signal_noice)) ** 2
     return 10 * torch.log10(Ps / Pn)
+
 
 def SNR_to_noise(snr):
     snr = 10 ** (snr / 10)

@@ -1,57 +1,83 @@
 # Denis
 # coding:UTF-8
-from utils import *
-from datasets import EurDataset, collate_data
-import json
-from models import Transceiver
-from torch.utils.data import DataLoader
-from train import val_epoch, val_epoch1
 import argparse
+import json
+
 import torch
+from torch.utils.data import DataLoader
+
+from datasets import EurDataset, collate_data
+from models import Transceiver
+from train import val_epoch
+from utils import build_transceiver_config, resolve_device, resolve_repo_path, validate_vocab
 
 
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=100, help='the epochs of training')
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
-    parser.add_argument('--device', default='cuda:0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='cuda:0' if torch.cuda.is_available() else 'cpu', help='device for evaluation')
     parser.add_argument('--ffn-num-input', type=int, default=128, help='ffn\'s input dim')
-    parser.add_argument('--ffn-num-hiddens', type=int, default=512, help='the hidden size of transformers\'s ffn')
+    parser.add_argument('--ffn-num-hiddens', type=int, default=256, help='the hidden size of transformers\'s ffn')
     parser.add_argument('--num-hiddens', type=int, default=128, help='the dimension of channel encoding')
     parser.add_argument('--key-size', type=int, default=128, help='the dimension of key')
     parser.add_argument('--query-size', type=int, default=128, help='the dimension of query')
     parser.add_argument('--value-size', type=int, default=128, help='the dimension of value')
-    parser.add_argument('--num-layers', type=int, default=4, help='the layers of encoder and decoder')
-    parser.add_argument('--dropout', type=int, default=0.1)
-    parser.add_argument('--lr', type=int, default=1e-3, help='learning rate')
+    parser.add_argument('--num-layers', type=int, default=3, help='the layers of encoder and decoder')
+    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--num_heads', type=int, default=8, help='multiple head of attention')
-    parser.add_argument('--norm-shape', type=list, default=[128])
-    parser.add_argument('--vocab', type=str, default='./content/vocab.json')
-    parser.add_argument('--save-csv', type=bool, default=False, help='save the result as csv file')
-    parser.add_argument('--save-img', type=bool, default=False, help='save the loss arc as img')
+    parser.add_argument('--norm-shape', nargs='+', type=int, default=[128], help='layer norm shape values')
+    parser.add_argument('--vocab', type=str, default='./content/vocab.json', help='path to vocab json')
+    parser.add_argument('--checkpoint-path', type=str, default='./artifacts/model.pt', help='path to the saved checkpoint')
+    parser.add_argument('--save-csv', action='store_true', help='save the result as csv file')
+    parser.add_argument('--save-img', action='store_true', help='save the loss arc as img')
     return parser.parse_args()
 
 
+
 def predict(opt):
-    vocab, ffn_num_input, ffn_num_hiddens, key_size, query_size, value_size, num_layers, dropout, lr, num_heads, \
-    norm_shape, save_csv, save_img, num_hiddens = opt.vocab, opt.ffn_num_input, opt.ffn_num_hiddens, opt.key_size, \
-                                                  opt.query_size, opt.value_size, opt.num_layers, opt.dropout, \
-                                                  opt.lr, opt.num_heads, opt.norm_shape, opt.save_csv, \
-                                                  opt.save_img, opt.num_hiddens
+    device = resolve_device(opt.device)
+    vocab_path = resolve_repo_path(opt.vocab)
+    checkpoint_path = resolve_repo_path(opt.checkpoint_path)
 
     test_datasets = EurDataset(split='test')
     test_loader = DataLoader(test_datasets, shuffle=True, batch_size=opt.batch_size, collate_fn=collate_data)
-    with open(opt.vocab, 'rb') as file:
+    with vocab_path.open('r', encoding='utf-8') as file:
         vocab = json.load(file)
-        vocab_size = len(vocab['token_to_idx'])
+        token_to_idx = validate_vocab(vocab)
+        vocab_size = len(token_to_idx)
 
-    transceiver = Transceiver(num_layers, vocab_size, key_size, query_size,
-                              value_size, num_hiddens, norm_shape, ffn_num_input,
-                              ffn_num_hiddens, num_heads, dropout).to(opt.device)
-    transceiver.load_state_dict(torch.load('model.pt'))
-    loss = MaskedSoftmaxCELoss()
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f'Checkpoint not found: {checkpoint_path}')
 
-    l = val_epoch(transceiver, test_loader, opt.device, loss, vocab, 12)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    if 'model_state_dict' in checkpoint:
+        model_config = checkpoint.get('model_config', build_transceiver_config(opt, vocab_size))
+        checkpoint_vocab_size = checkpoint.get('vocab_size')
+        checkpoint_start_token_id = checkpoint.get('start_token_id')
+        current_start_token_id = token_to_idx['<START>']
+        if checkpoint_vocab_size is not None and checkpoint_vocab_size != vocab_size:
+            raise ValueError(
+                f'Checkpoint vocab size ({checkpoint_vocab_size}) does not match current vocab size ({vocab_size}).'
+            )
+        if checkpoint_start_token_id is not None and checkpoint_start_token_id != current_start_token_id:
+            raise ValueError('Checkpoint <START> token id does not match the current vocab.')
+        model_state_dict = checkpoint['model_state_dict']
+    else:
+        model_config = build_transceiver_config(opt, vocab_size)
+        model_state_dict = checkpoint
+
+    transceiver = Transceiver(**model_config).to(device)
+    try:
+        transceiver.load_state_dict(model_state_dict)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            'Failed to load checkpoint. For legacy raw state_dict checkpoints, ensure the prediction '
+            'architecture flags match the training configuration.'
+        ) from exc
+
+    l = val_epoch(transceiver, test_loader, device, vocab, 12)
     print(l)
 
 
